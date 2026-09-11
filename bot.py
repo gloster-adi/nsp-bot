@@ -10,11 +10,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 # Store extracted student data
 STUDENT_DATA = {}
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, "student_data_cache.pkl")
 
 
@@ -561,15 +561,15 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Start the bot using bundled project data by default."""
-    pdf_folder = get_default_pdf_folder()
-
-    if not bootstrap_student_data(pdf_folder):
-        return
-
-    # Create bot application
-    token = os.getenv("BOT_TOKEN")
+    token = os.getenv("BOT_TOKEN", "").strip()
     if not token:
         raise RuntimeError("BOT_TOKEN environment variable is required")
+
+    pdf_folder = get_default_pdf_folder()
+    if not bootstrap_student_data(pdf_folder):
+        raise RuntimeError(f"Could not load student data from {pdf_folder}")
+
+    # Create bot application
 
     app = Application.builder().token(token).build()
     
