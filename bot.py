@@ -17,7 +17,7 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 # Store extracted student data
 STUDENT_DATA = {}
 CACHE_FILE = os.path.join(BASE_DIR, "student_data_cache.pkl")
-USERS_FILE = os.path.join(BASE_DIR, "bot_users.json")
+USERS_FILE = os.getenv("USERS_FILE", os.path.join(BASE_DIR, "bot_users.json"))
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@cyberstcafe")
 CHANNEL_URL = "https://t.me/cyberstcafe"
 USED_USER_IDS = set()
