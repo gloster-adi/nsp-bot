@@ -2,9 +2,10 @@ import os
 import PyPDF2
 import re
 import pickle
+import json
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters, ContextTypes
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +17,79 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 # Store extracted student data
 STUDENT_DATA = {}
 CACHE_FILE = os.path.join(BASE_DIR, "student_data_cache.pkl")
+USERS_FILE = os.path.join(BASE_DIR, "bot_users.json")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@cyberstcafe")
+CHANNEL_URL = "https://t.me/cyberstcafe"
+USED_USER_IDS = set()
+
+
+def load_used_users():
+    """Load the unique Telegram users who passed the channel check."""
+    global USED_USER_IDS
+
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as file:
+            values = json.load(file)
+        if isinstance(values, list):
+            USED_USER_IDS = {str(value) for value in values}
+    except FileNotFoundError:
+        USED_USER_IDS = set()
+    except (json.JSONDecodeError, OSError) as error:
+        logger.warning("Could not load user count: %s", error)
+        USED_USER_IDS = set()
+
+
+def record_user(user_id):
+    """Record a verified user once and persist the total."""
+    user_id = str(user_id)
+    if user_id in USED_USER_IDS:
+        return
+
+    USED_USER_IDS.add(user_id)
+    try:
+        with open(USERS_FILE, "w", encoding="utf-8") as file:
+            json.dump(sorted(USED_USER_IDS), file)
+    except OSError as error:
+        logger.error("Could not save user count: %s", error)
+
+
+def join_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Join channel", url=CHANNEL_URL)],
+        [InlineKeyboardButton("I joined - Verify", callback_data="verify_membership")],
+    ])
+
+
+async def user_is_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Check whether the user can access the bot after joining the channel."""
+    user = update.effective_user
+    if user is None:
+        return False
+
+    try:
+        member = await context.bot.get_chat_member(CHANNEL_USERNAME, user.id)
+    except Exception as error:
+        logger.warning("Could not verify channel membership for %s: %s", user.id, error)
+        return False
+
+    return member.status in {"member", "administrator", "creator"} or (
+        member.status == "restricted" and getattr(member, "is_member", False)
+    )
+
+
+async def ensure_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Allow only channel members to use bot features."""
+    if await user_is_member(update, context):
+        record_user(update.effective_user.id)
+        return True
+
+    message = update.effective_message
+    if message:
+        await message.reply_text(
+            "Please join our channel first, then tap Verify to use this bot.",
+            reply_markup=join_keyboard(),
+        )
+    return False
 
 
 def get_default_pdf_folder():
@@ -400,6 +474,9 @@ def extract_pdf_data(pdf_folder):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start command - Welcome message"""
+    if not await ensure_access(update, context):
+        return
+
     welcome_text = """
 
    🎓 NSP ELIGIBILITY STATUS BOT 🎓    
@@ -435,6 +512,9 @@ Let's get started! 👇
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Help command"""
+    if not await ensure_access(update, context):
+        return
+
     help_text = """
 📖 **HELP GUIDE**
 
@@ -462,6 +542,9 @@ Contact: +918936088565
 
 async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """About command"""
+    if not await ensure_access(update, context):
+        return
+
     about_text = """
 **About NSP Status Bot**
 
@@ -481,10 +564,14 @@ All data is sourced from official NSP databases and Bihar School Examination Boa
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show bot status"""
+    if not await ensure_access(update, context):
+        return
+
     status_text = f"""
 📊 **BOT STATUS**
 
 ✅ **Bot Status:** Running
+👥 **Users Used Bot:** {len(USED_USER_IDS)}
 📦 **Total Students Loaded:** {len(STUDENT_DATA)}
 💾 **Cache File:** {CACHE_FILE}
 📂 **Cache Exists:** {'Yes ✅' if os.path.exists(CACHE_FILE) else 'No ❌'}
@@ -497,6 +584,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle user messages"""
+    if not await ensure_access(update, context):
+        return
+
     text = update.message.text
     
     if text == "✅ Check Status":
@@ -559,6 +649,22 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors"""
     logger.error(f"❌ Error occurred: {context.error}")
 
+
+async def verify_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Re-check membership after the user taps the verification button."""
+    query = update.callback_query
+    await query.answer()
+
+    if not await user_is_member(update, context):
+        await query.message.reply_text(
+            "I could not verify your membership yet. Join the channel and tap Verify again.",
+            reply_markup=join_keyboard(),
+        )
+        return
+
+    record_user(update.effective_user.id)
+    await query.message.reply_text("Membership verified. Send /start to use the bot.")
+
 def main():
     """Start the bot using bundled project data by default."""
     token = os.getenv("BOT_TOKEN", "").strip()
@@ -569,6 +675,8 @@ def main():
     if not bootstrap_student_data(pdf_folder):
         raise RuntimeError(f"Could not load student data from {pdf_folder}")
 
+    load_used_users()
+
     # Create bot application
 
     app = Application.builder().token(token).build()
@@ -578,6 +686,7 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("about", about_command))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CallbackQueryHandler(verify_membership, pattern="^verify_membership$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_error_handler(error_handler)
     
