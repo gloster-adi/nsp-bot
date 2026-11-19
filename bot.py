@@ -470,7 +470,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ✨ <b>Welcome to NSP Status Bot!</b>
 
-This bot helps you look up your student record.
+This bot helps you look up your NSP student record.
 
 📋 <b>How to use:</b>
 1️⃣ Click on "Check Status" below
@@ -519,7 +519,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📌 Marks and Percentage
 
 <b>Still need help?</b>
-Contact the channel admin for support.
+Contact the @Unknown77339 for support.
     """
     await update.message.reply_text(help_text, parse_mode='HTML')
 
@@ -531,17 +531,18 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     about_text = """
 <b>About NSP Status Bot</b>
 
-This bot looks up student records related to the National Scholarship Portal. It does not determine scholarship eligibility.
+This bot looks up student records related to the National Scholarship Portal. It does not guarantee your scholarship eligibility.
 
-<b>Supported Categories:</b>
+<b>Supported Subject Categories:</b>
 🎓 Arts
 🔬 Science
 💼 Commerce
 
-Record data is read from the authorized PDFs configured by the bot operator.
+Record data is read from the authorized Documents only.
 
 <b>Version:</b> 1.0
-<b>Developed for:</b> Cyber Station Internet Cafe
+<b>Developed for:</b> NET GATE Cyber Cafe
+<b> Developer:</b> @gloster_adi
     """
     await update.message.reply_text(about_text, parse_mode='HTML')
 
