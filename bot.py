@@ -1,13 +1,14 @@
-import os
-import PyPDF2
-import re
-import pickle
-import json
 import html
+import json
+import os
+import pickle
+import re
+import logging
+
+import PyPDF2
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters, ContextTypes
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ STUDENT_DATA = {}
 CACHE_FILE = os.path.join(BASE_DIR, "student_data_cache.pkl")
 USERS_FILE = os.getenv("USERS_FILE", os.path.join(BASE_DIR, "bot_users.json"))
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@cyberstcafe")
-CHANNEL_URL = "https://t.me/cyberstcafe"
+CHANNEL_URL = f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
 USED_USER_IDS = set()
 
 
@@ -213,7 +214,7 @@ def load_cache():
 
 def verify_pdf_folder(pdf_folder):
     """Verify PDF folder exists and contains PDFs"""
-    if not os.path.exists(pdf_folder):
+    if not os.path.isdir(pdf_folder):
         logger.error(f"❌ PDF folder not found: {pdf_folder}")
         return False
     
@@ -405,7 +406,7 @@ def extract_pdf_data(pdf_folder):
     for pdf_file in os.listdir(pdf_folder):
         if pdf_file.lower().endswith('.pdf'):
             pdf_path = os.path.join(pdf_folder, pdf_file)
-            faculty = pdf_file.replace('.pdf', '').upper()
+            faculty = os.path.splitext(pdf_file)[0].upper()
             
             logger.info(f"📄 Processing {pdf_file}...")
             
@@ -463,7 +464,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_text = """
 
-   🎓 NSP ELIGIBILITY STATUS BOT 🎓    
+   🎓 NSP STUDENT RECORD BOT 🎓
      National Scholarship Portal        
 
 
@@ -515,7 +516,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📌 Gender
 📌 Category
 📌 Faculty
-📌 Marks & Percentage
+📌 Marks and Percentage
 
 <b>Still need help?</b>
 Contact the channel admin for support.
@@ -530,14 +531,14 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     about_text = """
 <b>About NSP Status Bot</b>
 
-This bot is designed to help students check their National Scholarship Portal (NSP) eligibility status.
+This bot looks up student records related to the National Scholarship Portal. It does not determine scholarship eligibility.
 
 <b>Supported Categories:</b>
 🎓 Arts
 🔬 Science
 💼 Commerce
 
-All data is sourced from official NSP databases and Bihar School Examination Board records.
+Record data is read from the authorized PDFs configured by the bot operator.
 
 <b>Version:</b> 1.0
 <b>Developed for:</b> Cyber Station Internet Cafe
@@ -606,19 +607,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
          📋 STUDENT DETAILS 📋         
 
-👤 <b>Name:</b> {html.escape(student['StudentName'])}
-🔢 <b>Roll Code:</b> {html.escape(student['RollCode'])}
-🆔 <b>Roll Number:</b> {html.escape(student['RollNumber'])}
-📅 <b>Year of Passing:</b> {html.escape(student['Year'])}
-🎂 <b>Date of Birth:</b> {html.escape(student['DOB'])}
-👨 <b>Father's Name:</b> {html.escape(student['FatherName'])}
-⚧️ <b>Gender:</b> {html.escape(student['Gender'])}
-📂 <b>Category:</b> {html.escape(student['CasteCategory'])}
-♿ <b>Physically Challenged:</b> {html.escape(student['PhysicallyChallenged'])}
-🎓 <b>Faculty:</b> {html.escape(student['Faculty'])}
-📊 <b>Full Marks:</b> {html.escape(student['FullMarks'])}
-📈 <b>Total Marks:</b> {html.escape(student['TotalMarks'])}
-📉 <b>Percentage/Grade:</b> {html.escape(student['Percentage'])}
+👤 <b>Name:</b> {html.escape(str(student['StudentName']))}
+🔢 <b>Roll Code:</b> {html.escape(str(student['RollCode']))}
+🆔 <b>Roll Number:</b> {html.escape(str(student['RollNumber']))}
+📅 <b>Year of Passing:</b> {html.escape(str(student['Year']))}
+🎂 <b>Date of Birth:</b> {html.escape(str(student['DOB']))}
+👨 <b>Father's Name:</b> {html.escape(str(student['FatherName']))}
+⚧️ <b>Gender:</b> {html.escape(str(student['Gender']))}
+📂 <b>Category:</b> {html.escape(str(student['CasteCategory']))}
+♿ <b>Physically Challenged:</b> {html.escape(str(student['PhysicallyChallenged']))}
+🎓 <b>Faculty:</b> {html.escape(str(student['Faculty']))}
+📊 <b>Full Marks:</b> {html.escape(str(student['FullMarks']))}
+📈 <b>Total Marks:</b> {html.escape(str(student['TotalMarks']))}
+📉 <b>Percentage/Grade:</b> {html.escape(str(student['Percentage']))}
 
 
 Record found. This bot does not determine NSP eligibility.

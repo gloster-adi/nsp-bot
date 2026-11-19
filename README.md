@@ -9,6 +9,7 @@ A Python Telegram bot that looks up student records from locally supplied PDF fi
 - Checks membership in a configured Telegram channel
 - Caches parsed PDF records locally to speed up restarts
 - Provides `/start`, `/help`, `/about`, and `/status` commands
+- Displays matching records only; it does not determine scholarship eligibility
 
 ## Requirements
 
