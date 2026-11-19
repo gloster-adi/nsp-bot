@@ -3,6 +3,7 @@ import PyPDF2
 import re
 import pickle
 import json
+import html
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters, ContextTypes
@@ -105,12 +106,13 @@ def save_cache():
     except Exception as e:
         logger.error(f"❌ Error saving cache: {e}")
 
-def cache_is_stale():
+def cache_is_stale(pdf_folder=None):
     """Return True when the PDF source files are newer than the cached extracted data."""
     if not os.path.exists(CACHE_FILE):
         return True
 
-    pdf_folder = get_default_pdf_folder()
+    if pdf_folder is None:
+        pdf_folder = get_default_pdf_folder()
     if not os.path.exists(pdf_folder):
         return False
 
@@ -215,7 +217,7 @@ def verify_pdf_folder(pdf_folder):
         logger.error(f"❌ PDF folder not found: {pdf_folder}")
         return False
     
-    pdf_files = [f for f in os.listdir(pdf_folder) if f.endswith('.pdf')]
+    pdf_files = [f for f in os.listdir(pdf_folder) if f.lower().endswith('.pdf')]
     
     if not pdf_files:
         logger.error(f"❌ No PDF files found in: {pdf_folder}")
@@ -234,16 +236,6 @@ def refresh_student_data(pdf_folder=None):
 
     logger.info("🔄 Forcing fresh rebuild from PDFs...")
     logger.info(f"📂 PDF Folder: {pdf_folder}")
-
-    if os.path.exists(CACHE_FILE):
-        logger.info(f"🧹 Manual refresh: deleting old cache before rebuilding from PDFs: {CACHE_FILE}")
-        try:
-            os.remove(CACHE_FILE)
-            logger.info(f"✅ Old cache deleted successfully: {CACHE_FILE}")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not remove old cache: {e}")
-    else:
-        logger.info(f"🧹 Manual refresh: no old cache found; rebuilding from PDFs: {CACHE_FILE}")
 
     STUDENT_DATA.clear()
     if not extract_pdf_data(pdf_folder):
@@ -268,7 +260,7 @@ def bootstrap_student_data(pdf_folder=None):
     logger.info(f"📂 PDF Folder: {pdf_folder}")
 
     if os.path.exists(CACHE_FILE):
-        if not cache_is_stale():
+        if not cache_is_stale(pdf_folder):
             logger.info("📦 Cache is up to date. Reusing cached student data without reprocessing PDFs.")
             STUDENT_DATA.clear()
             if load_cache():
@@ -411,7 +403,7 @@ def extract_pdf_data(pdf_folder):
         return False
     
     for pdf_file in os.listdir(pdf_folder):
-        if pdf_file.endswith('.pdf'):
+        if pdf_file.lower().endswith('.pdf'):
             pdf_path = os.path.join(pdf_folder, pdf_file)
             faculty = pdf_file.replace('.pdf', '').upper()
             
@@ -475,20 +467,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
      National Scholarship Portal        
 
 
-✨ **Welcome to NSP Status Bot!**
+✨ <b>Welcome to NSP Status Bot!</b>
 
-This bot helps you check your NSP eligibility status instantly. 
+This bot helps you look up your student record.
 
-📋 **How to use:**
+📋 <b>How to use:</b>
 1️⃣ Click on "Check Status" below
 2️⃣ Enter your Roll Code
 3️⃣ Enter your Roll Number
-4️⃣ Get your complete details & NSP eligibility status
+4️⃣ View your available record details
 
-🎯 **Features:**
-✅ Instant eligibility verification
+🎯 <b>Features:</b>
+✅ Instant student record lookup
 ✅ Complete student information
-✅ Category and scholarship details
+✅ Category and marks details
 ✅ Fast and secure
 
 Let's get started! 👇
@@ -500,7 +492,7 @@ Let's get started! 👇
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='HTML')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Help command"""
@@ -508,16 +500,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     help_text = """
-📖 **HELP GUIDE**
+📖 <b>HELP GUIDE</b>
 
-**How to Check Your Status:**
+<b>How to Check Your Status:</b>
 1. Click "Check Status"
 2. Enter your Roll Code (e.g., 17089)
 3. Enter your Roll Number (e.g., 26020020)
 4. Your complete details will be displayed
-5. Check your NSP Eligibility Status
 
-**What Information You'll Get:**
+<b>What Information You'll Get:</b>
 📌 Full Name
 📌 Date of Birth
 📌 Father's Name
@@ -525,12 +516,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📌 Category
 📌 Faculty
 📌 Marks & Percentage
-📌 **NSP Status: ELIGIBLE** ✅
 
-**Still need help?**
+<b>Still need help?</b>
 Contact the channel admin for support.
     """
-    await update.message.reply_text(help_text, parse_mode='Markdown')
+    await update.message.reply_text(help_text, parse_mode='HTML')
 
 async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """About command"""
@@ -538,21 +528,21 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     about_text = """
-**About NSP Status Bot**
+<b>About NSP Status Bot</b>
 
 This bot is designed to help students check their National Scholarship Portal (NSP) eligibility status.
 
-**Supported Categories:**
+<b>Supported Categories:</b>
 🎓 Arts
 🔬 Science
 💼 Commerce
 
 All data is sourced from official NSP databases and Bihar School Examination Board records.
 
-**Version:** 1.0
-**Developed for:** Cyber Station Internet Cafe
+<b>Version:</b> 1.0
+<b>Developed for:</b> Cyber Station Internet Cafe
     """
-    await update.message.reply_text(about_text, parse_mode='Markdown')
+    await update.message.reply_text(about_text, parse_mode='HTML')
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show bot status"""
@@ -560,19 +550,19 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     status_text = f"""
-📊 **BOT STATUS**
+📊 <b>BOT STATUS</b>
 
-✅ **Bot Status:** Running
-👥 **Users Used Bot:** {len(USED_USER_IDS)}
-📦 **Total Students Loaded:** {len(STUDENT_DATA)}
-💾 **Cache File:** {CACHE_FILE}
-📂 **Cache Exists:** {'Yes ✅' if os.path.exists(CACHE_FILE) else 'No ❌'}
+✅ <b>Bot Status:</b> Running
+👥 <b>Users Used Bot:</b> {len(USED_USER_IDS)}
+📦 <b>Total Students Loaded:</b> {len(STUDENT_DATA)}
+💾 <b>Cache File:</b> {html.escape(CACHE_FILE)}
+📂 <b>Cache Exists:</b> {'Yes ✅' if os.path.exists(CACHE_FILE) else 'No ❌'}
 
-**System:**
+<b>System:</b>
 - Using {'Cached' if os.path.exists(CACHE_FILE) else 'Fresh'} data
 - Ready to serve queries
     """
-    await update.message.reply_text(status_text, parse_mode='Markdown')
+    await update.message.reply_text(status_text, parse_mode='HTML')
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle user messages"""
@@ -582,7 +572,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     
     if text == "✅ Check Status":
-        await update.message.reply_text("📝 Please enter your **Roll Code**:\n(Example: 17089)", parse_mode='Markdown')
+        await update.message.reply_text("📝 Please enter your <b>Roll Code</b>:\n(Example: 17089)", parse_mode='HTML')
         context.user_data['step'] = 1
         
     elif text == "ℹ️ About":
@@ -592,12 +582,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await help_command(update, context)
         
     elif context.user_data.get('step') == 1:
-        context.user_data['roll_code'] = text.strip()
-        await update.message.reply_text("📝 Now enter your **Roll Number**:\n(Example: 26020020)", parse_mode='Markdown')
+        roll_code = text.strip()
+        if not roll_code.isdigit():
+            await update.message.reply_text("Roll Code must contain digits only. Please try again.")
+            return
+        context.user_data['roll_code'] = roll_code
+        await update.message.reply_text("📝 Now enter your <b>Roll Number</b>:\n(Example: 26020020)", parse_mode='HTML')
         context.user_data['step'] = 2
         
     elif context.user_data.get('step') == 2:
-        context.user_data['roll_number'] = text.strip()
+        roll_number = text.strip()
+        if not roll_number.isdigit():
+            await update.message.reply_text("Roll Number must contain digits only. Please try again.")
+            return
+        context.user_data['roll_number'] = roll_number
         student_key = f"{context.user_data['roll_code']}_{context.user_data['roll_number']}"
         
         logger.info(f"🔍 Searching for: {student_key}")
@@ -608,32 +606,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
          📋 STUDENT DETAILS 📋         
 
-👤 **Name:** {student['StudentName']}
-🔢 **Roll Code:** {student['RollCode']}
-🆔 **Roll Number:** {student['RollNumber']}
-📅 **Year of Passing:** {student['Year']}
-🎂 **Date of Birth:** {student['DOB']}
-👨 **Father's Name:** {student['FatherName']}
-⚧️ **Gender:** {student['Gender']}
-📂 **Category:** {student['CasteCategory']}
-♿ **Physically Challenged:** {student['PhysicallyChallenged']}
-🎓 **Faculty:** {student['Faculty']}
-📊 **Full Marks:** {student['FullMarks']}
-📈 **Total Marks:** {student['TotalMarks']}
-📉 **Percentage/Grade:** {student['Percentage']}
+👤 <b>Name:</b> {html.escape(student['StudentName'])}
+🔢 <b>Roll Code:</b> {html.escape(student['RollCode'])}
+🆔 <b>Roll Number:</b> {html.escape(student['RollNumber'])}
+📅 <b>Year of Passing:</b> {html.escape(student['Year'])}
+🎂 <b>Date of Birth:</b> {html.escape(student['DOB'])}
+👨 <b>Father's Name:</b> {html.escape(student['FatherName'])}
+⚧️ <b>Gender:</b> {html.escape(student['Gender'])}
+📂 <b>Category:</b> {html.escape(student['CasteCategory'])}
+♿ <b>Physically Challenged:</b> {html.escape(student['PhysicallyChallenged'])}
+🎓 <b>Faculty:</b> {html.escape(student['Faculty'])}
+📊 <b>Full Marks:</b> {html.escape(student['FullMarks'])}
+📈 <b>Total Marks:</b> {html.escape(student['TotalMarks'])}
+📉 <b>Percentage/Grade:</b> {html.escape(student['Percentage'])}
 
 
-NSP STATUS: ELIGIBLE ✅           
-Congratulations on your eligibility!🎉  
+Record found. This bot does not determine NSP eligibility.
 
 📢 Join our WhatsApp community:
 🔗 Group: https://chat.whatsapp.com/JzN8HTpzs7I2aWwEqIpmeX
 🔗 Channel: https://whatsapp.com/channel/0029Vb8LQWm4CrfnJ7Jg923v
 
             """
-            await update.message.reply_text(detail_text, parse_mode='Markdown')
+            await update.message.reply_text(detail_text, parse_mode='HTML')
         else:
-            await update.message.reply_text(f"❌ **Student Not Found!**\n\nRoll Code: {context.user_data['roll_code']}\nRoll Number: {context.user_data['roll_number']}\n\nPlease verify your details and try again.", parse_mode='Markdown')
+            await update.message.reply_text(
+                f"❌ <b>Student Not Found!</b>\n\n"
+                f"Roll Code: {html.escape(context.user_data['roll_code'])}\n"
+                f"Roll Number: {html.escape(context.user_data['roll_number'])}\n\n"
+                "Please verify your details and try again.",
+                parse_mode='HTML',
+            )
         
         context.user_data['step'] = 0
 

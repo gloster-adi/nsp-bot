@@ -3,3 +3,5 @@
 __pycache__/
 *.pyc
 bot_users.json
+student_data_cache.pkl
+NSP_data/*.pdf
